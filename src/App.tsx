@@ -15,6 +15,7 @@ import {
   Menu,
   MessageCircle,
   RotateCcw,
+  Save,
   Search,
   Send,
   Sparkles,
@@ -43,6 +44,7 @@ type ChatMessage = {
   opportunityIds?: string[];
 };
 type AdvisorMode = "online" | "fallback";
+type ChatPurpose = "opportunity" | "teammate";
 const AI_API_URL = "https://supernz.xyz/zcst/api";
 const categories: Array<"全部" | OpportunityType> = [
   "全部",
@@ -79,10 +81,12 @@ function App() {
       "campuspick-preferences-v1",
       initialPreferences,
     );
-  const [messages, setMessages] = useState<ChatMessage[]>(initialChat),
+  const [messages, setMessages] = useLocalStorage<ChatMessage[]>("campuspick-chat-v1", initialChat),
     [chatInput, setChatInput] = useState(""),
     [isThinking, setIsThinking] = useState(false);
   const [advisorMode, setAdvisorMode] = useState<AdvisorMode>("online");
+  const [chatPurpose, setChatPurpose] = useState<ChatPurpose>("opportunity");
+  const [chatSavedAt, setChatSavedAt] = useLocalStorage<string>("campuspick-chat-saved-at-v1", "");
   const chatEnd = useRef<HTMLDivElement>(null);
   const filtered = useMemo(
     () =>
@@ -156,6 +160,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           stream: true,
+          mode: chatPurpose,
           messages: conversation.map((message) => ({
             role: message.role,
             content: message.text,
@@ -342,6 +347,14 @@ function App() {
             submit={submitChat}
             thinking={isThinking}
             mode={advisorMode}
+            purpose={chatPurpose}
+            setPurpose={(purpose) => {
+              setChatPurpose(purpose);
+              setMessages([{ role: "assistant", text: purpose === "teammate" ? "队友匹配模式已开启。告诉我你想参加的方向、擅长什么、希望队友补充什么，以及每周可投入多少时间。" : initialChat[0].text }]);
+            }}
+            savedAt={chatSavedAt}
+            saveChat={() => setChatSavedAt(new Date().toISOString())}
+            resetChat={() => { setMessages(initialChat); setChatSavedAt(""); }}
             preferences={preferences}
             setPreferences={setPreferences}
             onOpen={setSelected}
@@ -709,6 +722,11 @@ function AdvisorView({
   submit,
   thinking,
   mode,
+  purpose,
+  setPurpose,
+  savedAt,
+  saveChat,
+  resetChat,
   preferences,
   setPreferences,
   onOpen,
@@ -720,16 +738,17 @@ function AdvisorView({
   submit: (v?: string) => void;
   thinking: boolean;
   mode: AdvisorMode;
+  purpose: ChatPurpose;
+  setPurpose: (purpose: ChatPurpose) => void;
+  savedAt: string;
+  saveChat: () => void;
+  resetChat: () => void;
   preferences: UserPreferences;
   setPreferences: (v: UserPreferences) => void;
   onOpen: (i: Opportunity) => void;
   chatEnd: React.RefObject<HTMLDivElement | null>;
 }) {
-  const prompts = [
-    "我是零基础，想参加 AI 比赛",
-    "时间不多，想先参加一次活动",
-    "我想学 Web 开发并认识同学",
-  ];
+  const prompts = purpose === "teammate" ? ["我会开发，想找会设计的队友", "我每周能投入4小时，想做AI项目", "帮我找合作节奏相近的队友"] : ["我是零基础，想参加 AI 比赛", "时间不多，想先参加一次活动", "我想学 Web 开发并认识同学"];
   return (
     <section className="advisor-page">
       <div className="advisor-head">
@@ -741,6 +760,7 @@ function AdvisorView({
           <span /> {mode === "online" ? "DeepSeek 在线" : "本地备用模式"}
         </span>
       </div>
+      <div className="advisor-mode-switch"><button className={purpose === "opportunity" ? "active" : ""} onClick={() => setPurpose("opportunity")}><Sparkles size={15}/> 机会推荐</button><button className={purpose === "teammate" ? "active" : ""} onClick={() => setPurpose("teammate")}><Users size={15}/> 匹配队友</button><span>{savedAt ? `已保存 · ${new Date(savedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}` : "当前对话未手动保存"}</span></div>
       <div className="advisor-layout">
         <aside className="preference-panel">
           <div className="panel-title">
@@ -824,7 +844,8 @@ function AdvisorView({
                 <i /> {mode === "online" ? "DeepSeek 已连接" : "本地推荐可用"}
               </span>
             </div>
-            <button onClick={() => window.location.reload()} title="重置对话">
+            <button onClick={saveChat} title="保存对话"><Save size={16}/></button>
+            <button onClick={resetChat} title="新建对话">
               <RotateCcw size={16} />
             </button>
           </div>
