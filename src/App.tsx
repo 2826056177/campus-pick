@@ -147,6 +147,7 @@ function App() {
     setMessages(conversation);
     setChatInput("");
     setIsThinking(true);
+    let receivedAny = false;
     try {
       const controller = new AbortController(),
         timeout = window.setTimeout(() => controller.abort(), 50000);
@@ -154,6 +155,7 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          stream: true,
           messages: conversation.map((message) => ({
             role: message.role,
             content: message.text,
@@ -163,25 +165,50 @@ function App() {
       });
       window.clearTimeout(timeout);
       if (!response.ok) throw new Error(`HTTP_${response.status}`);
-      const data = (await response.json()) as { answer?: string };
-      if (!data.answer) throw new Error("EMPTY_RESPONSE");
+      if (!response.body) throw new Error("EMPTY_STREAM");
+      setAdvisorMode("online");
+      setMessages((current) => [...current, { role: "assistant", text: "" }]);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let answer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        for (const event of events) {
+          const line = event.split("\n").find((item) => item.startsWith("data:"));
+          if (!line) continue;
+          const data = JSON.parse(line.slice(5).trim()) as { text?: string; error?: string };
+          if (data.error) throw new Error(data.error);
+          if (!data.text) continue;
+          receivedAny = true;
+          setIsThinking(false);
+          answer += data.text;
+          setMessages((current) => current.map((message, index) => index === current.length - 1 ? { ...message, text: answer } : message));
+          chatEnd.current?.scrollIntoView({ behavior: "auto" });
+        }
+      }
+      if (!answer) throw new Error("EMPTY_RESPONSE");
       const opportunityIds = opportunities
         .filter(
           (item) =>
-            data.answer!.includes(item.title) ||
+            answer.includes(item.title) ||
             new RegExp(
               `(?:编号|NO\\.?|^|[（(])\\s*${item.id}(?:[）)]|\\s|、|，|。)`,
               "m",
-            ).test(data.answer!),
+            ).test(answer),
         )
         .map((item) => item.id)
         .slice(0, 5);
-      setAdvisorMode("online");
-      setMessages((current) => [
-        ...current,
-        { role: "assistant", text: data.answer!, opportunityIds },
-      ]);
+      setMessages((current) => current.map((message, index) => index === current.length - 1 ? { ...message, opportunityIds } : message));
     } catch {
+      if (receivedAny) {
+        setMessages((current) => current.map((message, index) => index === current.length - 1 ? { ...message, text: `${message.text}\n\n（连接中断，已保留收到的内容）` } : message));
+        return;
+      }
       const results = recommendFromText(trimmed, opportunities);
       const fallback = topRecommendations.map((item) => ({
           item,
