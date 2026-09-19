@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Bookmark, Check, Clock3, Info, Plus, RotateCcw, Sparkles, UserRoundSearch, Users, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bookmark, Check, Clock3, Plus, RotateCcw, Sparkles, UserRoundSearch, Users, X } from 'lucide-react'
 import { mockTeammates, type TeammateDirection, type TeammateProfile, type TeammateSkill } from '../data/teammates'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 
@@ -53,7 +53,7 @@ export function TeammateMatcher() {
   }
 
   return <section className="page-view teammate-page">
-    <div className="page-intro teammate-intro"><div><span className="kicker">TEAM MATCH</span><h1>找到合拍的队友</h1><p>用一份简短问卷，发现方向一致、能力互补的合作伙伴。</p><div className="mock-label"><Info size={14}/> 初始候选人为模拟数据，用户可自愿加入真实匹配池</div></div><button className="button join-pool-button" onClick={() => { setJoining(true); setJoinState('idle') }}><Plus size={18}/> 我也想加入匹配池</button></div>
+    <div className="page-intro teammate-intro"><div><span className="kicker">TEAM MATCH</span><h1>找到合拍的队友</h1><p>用一份简短问卷，发现方向一致、能力互补的合作伙伴。</p></div><button className="button join-pool-button" onClick={() => { setJoining(true); setJoinState('idle') }}><Plus size={18}/> 我也想加入匹配池</button></div>
     {step < questions.length ? <div className="quiz-shell">
       <div className="quiz-progress"><span>匹配问卷</span><b>{step + 1} / {questions.length}</b><div><i style={{ width: `${(step + 1) / questions.length * 100}%` }}/></div></div>
       <div className="quiz-card"><span className="question-number">0{step + 1}</span><h2>{questions[step].title}</h2><p>{questions[step].hint}</p><div className="answer-grid">{questions[step].values.map(value => <button className={questions[step].value === value ? 'active' : ''} key={value} onClick={() => questions[step].set(value)}><span>{value}</span>{questions[step].value === value && <Check size={17}/>}</button>)}</div>{step === 2 && <div className="hours-control"><label>每周可投入时间 <b>{answers.hours} 小时</b></label><input type="range" min="2" max="10" step="1" value={answers.hours} onChange={event => setAnswers({ ...answers, hours: Number(event.target.value) })}/><div><span>2 小时</span><span>10 小时</span></div></div>}<div className="quiz-actions"><button className="button ghost" disabled={step === 0} onClick={() => setStep(value => value - 1)}><ArrowLeft size={17}/> 上一步</button><button className="button primary" onClick={() => setStep(value => value + 1)}>{step === questions.length - 1 ? <><Sparkles size={17}/> 查看匹配</> : <>下一步 <ArrowRight size={17}/></>}</button></div></div>
