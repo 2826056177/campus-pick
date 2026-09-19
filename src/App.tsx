@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Bot,
@@ -91,7 +91,11 @@ function App() {
   const [advisorMode, setAdvisorMode] = useState<AdvisorMode>("online");
   const [chatPurpose, setChatPurpose] = useState<ChatPurpose>("opportunity");
   const [chatSavedAt, setChatSavedAt] = useLocalStorage<string>("campuspick-chat-saved-at-v1", "");
-  const chatEnd = useRef<HTMLDivElement>(null);
+  const chatMessages = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const container = chatMessages.current;
+    if (container) container.scrollTop = container.scrollHeight;
+  }, [messages, isThinking]);
   const filtered = useMemo(
     () =>
       allOpportunities
@@ -204,7 +208,6 @@ function App() {
           setIsThinking(false);
           answer += data.text;
           setMessages((current) => current.map((message, index) => index === current.length - 1 ? { ...message, text: answer } : message));
-          chatEnd.current?.scrollIntoView({ behavior: "auto" });
         }
       }
       if (!answer) throw new Error("EMPTY_RESPONSE");
@@ -248,10 +251,6 @@ function App() {
       ]);
     } finally {
       setIsThinking(false);
-      window.setTimeout(
-        () => chatEnd.current?.scrollIntoView({ behavior: "smooth" }),
-        30,
-      );
     }
   }
   return (
@@ -363,7 +362,7 @@ function App() {
             preferences={preferences}
             setPreferences={setPreferences}
             onOpen={setSelected}
-            chatEnd={chatEnd}
+            chatMessages={chatMessages}
           />
         )}
       </main>
@@ -764,7 +763,7 @@ function AdvisorView({
   preferences,
   setPreferences,
   onOpen,
-  chatEnd,
+  chatMessages,
 }: {
   messages: ChatMessage[];
   input: string;
@@ -780,7 +779,7 @@ function AdvisorView({
   preferences: UserPreferences;
   setPreferences: (v: UserPreferences) => void;
   onOpen: (i: Opportunity) => void;
-  chatEnd: React.RefObject<HTMLDivElement | null>;
+  chatMessages: React.RefObject<HTMLDivElement | null>;
 }) {
   const prompts = purpose === "teammate" ? ["我会开发，想找会设计的队友", "我每周能投入4小时，想做AI项目", "帮我找合作节奏相近的队友"] : ["我是零基础，想参加 AI 比赛", "时间不多，想先参加一次活动", "我想学 Web 开发并认识同学"];
   return (
@@ -883,7 +882,7 @@ function AdvisorView({
               <RotateCcw size={16} />
             </button>
           </div>
-          <div className="chat-messages">
+          <div className="chat-messages" ref={chatMessages}>
             {messages.map((message, index) => (
               <div className={`message ${message.role}`} key={index}>
                 <div className="message-bubble">
@@ -916,7 +915,6 @@ function AdvisorView({
                 </div>
               </div>
             )}
-            <div ref={chatEnd} />
           </div>
           <div className="quick-prompts">
             {prompts.map((prompt) => (
