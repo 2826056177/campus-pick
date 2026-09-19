@@ -165,6 +165,13 @@ function App() {
       });
       window.clearTimeout(timeout);
       if (!response.ok) throw new Error(`HTTP_${response.status}`);
+      if (response.headers.get("content-type")?.includes("application/json")) {
+        const data = (await response.json()) as { answer?: string };
+        if (!data.answer) throw new Error("EMPTY_RESPONSE");
+        setAdvisorMode("online");
+        setMessages((current) => [...current, { role: "assistant", text: data.answer! }]);
+        return;
+      }
       if (!response.body) throw new Error("EMPTY_STREAM");
       setAdvisorMode("online");
       setMessages((current) => [...current, { role: "assistant", text: "" }]);
