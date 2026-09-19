@@ -702,7 +702,6 @@ function AdvisorView({
         <div>
           <span className="kicker">AI ADVISOR</span>
           <h1>和拾机聊聊你的方向</h1>
-          <p>推荐只依据题目提供的 18 条信息，不虚构活动或报名方式。</p>
         </div>
         <span className={`mode-pill ${mode === "fallback" ? "fallback" : ""}`}>
           <span /> {mode === "online" ? "DeepSeek 在线" : "本地备用模式"}
