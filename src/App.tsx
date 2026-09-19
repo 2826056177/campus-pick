@@ -14,6 +14,7 @@ import {
   ListFilter,
   Menu,
   MessageCircle,
+  Plus,
   RotateCcw,
   Save,
   Search,
@@ -54,6 +55,7 @@ const categories: Array<"全部" | OpportunityType> = [
   "招募",
   "科研",
   "志愿",
+  "活动",
 ];
 const initialPreferences: UserPreferences = {
   interests: ["比赛", "学习"],
@@ -81,6 +83,8 @@ function App() {
       "campuspick-preferences-v1",
       initialPreferences,
     );
+  const [published, setPublished] = useLocalStorage<Opportunity[]>("campuspick-published-v1", []);
+  const allOpportunities = useMemo(() => [...opportunities, ...published], [published]);
   const [messages, setMessages] = useLocalStorage<ChatMessage[]>("campuspick-chat-v1", initialChat),
     [chatInput, setChatInput] = useState(""),
     [isThinking, setIsThinking] = useState(false);
@@ -90,7 +94,7 @@ function App() {
   const chatEnd = useRef<HTMLDivElement>(null);
   const filtered = useMemo(
     () =>
-      opportunities
+      allOpportunities
         .filter(
           (item) =>
             (category === "全部" || item.type === category) &&
@@ -105,10 +109,10 @@ function App() {
               scoreWithPreferences(a, preferences)
             : (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999"),
         ),
-    [category, preferences, query, sort],
+    [allOpportunities, category, preferences, query, sort],
   );
-  const plannedItems = opportunities.filter((item) => plans[item.id]);
-  const topRecommendations = [...opportunities]
+  const plannedItems = allOpportunities.filter((item) => plans[item.id]);
+  const topRecommendations = [...allOpportunities]
     .sort(
       (a, b) =>
         scoreWithPreferences(b, preferences) -
@@ -204,7 +208,7 @@ function App() {
         }
       }
       if (!answer) throw new Error("EMPTY_RESPONSE");
-      const opportunityIds = opportunities
+      const opportunityIds = allOpportunities
         .filter(
           (item) =>
             answer.includes(item.title) ||
@@ -221,7 +225,7 @@ function App() {
         setMessages((current) => current.map((message, index) => index === current.length - 1 ? { ...message, text: `${message.text}\n\n（连接中断，已保留收到的内容）` } : message));
         return;
       }
-      const results = recommendFromText(trimmed, opportunities);
+      const results = recommendFromText(trimmed, allOpportunities);
       const fallback = topRecommendations.map((item) => ({
           item,
           reasons: ["与你当前保存的偏好较匹配"],
@@ -326,6 +330,7 @@ function App() {
             plans={plans}
             onOpen={setSelected}
             onSave={toggleSave}
+            onPublish={(item) => setPublished((current) => [...current, item])}
           />
         )}
         {view === "teammates" && <TeammateMatcher />}
@@ -364,7 +369,7 @@ function App() {
       </main>
       <footer>
         <span>拾机 CampusPick</span>
-        <span>所有机会均为考核题目提供的模拟信息</span>
+        <span>题目模拟信息与学生自主发布内容</span>
       </footer>
       <BottomNav
         view={view}
@@ -441,18 +446,18 @@ function HomeView({
           </div>
           <div className="floating-note note-two">
             <span>今日概览</span>
-            <b>18 条机会待发现</b>
+            <b>{opportunities.length} 条信息待发现</b>
           </div>
         </div>
       </section>
       <section className="stats-strip">
         <div>
-          <b>18</b>
-          <span>条真实机会</span>
+          <b>{opportunities.length}</b>
+          <span>条题目模拟信息</span>
         </div>
         <div>
-          <b>6</b>
-          <span>类成长方向</span>
+          <b>{categories.length - 1}</b>
+          <span>类校园场景</span>
         </div>
         <div>
           <b>{plansCount}</b>
@@ -517,6 +522,7 @@ function DiscoverView({
   plans,
   onOpen,
   onSave,
+  onPublish,
 }: {
   query: string;
   setQuery: (v: string) => void;
@@ -528,13 +534,14 @@ function DiscoverView({
   plans: Plans;
   onOpen: (i: Opportunity) => void;
   onSave: (i: Opportunity) => void;
+  onPublish: (i: Opportunity) => void;
 }) {
+  const [publishing, setPublishing] = useState(false);
   return (
     <section className="page-view">
-      <div className="page-intro">
-        <span className="kicker">EXPLORE</span>
-        <h1>发现校园机会</h1>
-        <p>从比赛到实践，用你的条件筛出更合适的选择。</p>
+      <div className="page-intro publish-intro">
+        <div><span className="kicker">EXPLORE</span><h1>发现校园机会</h1><p>从比赛到实践，用你的条件筛出更合适的选择。</p></div>
+        <button className="button join-pool-button" onClick={() => setPublishing(true)}><Plus size={18}/> 发布活动或招募</button>
       </div>
       <div className="discover-toolbar">
         <label className="search-box">
@@ -576,7 +583,7 @@ function DiscoverView({
         <span>
           找到 <b>{items.length}</b> 个机会
         </span>
-        <span>信息更新时间 · 2026.09</span>
+        <span>题目更新时间 · 2026.09.19</span>
       </div>
       {items.length ? (
         <div className="card-grid discover-grid">
@@ -606,8 +613,35 @@ function DiscoverView({
           </button>
         </div>
       )}
+      {publishing && <PublishModal onClose={() => setPublishing(false)} onPublish={(item) => { onPublish(item); setPublishing(false); }} />}
     </section>
   );
+}
+
+function PublishModal({ onClose, onPublish }: { onClose: () => void; onPublish: (item: Opportunity) => void }) {
+  const [title, setTitle] = useState("");
+  const [detail, setDetail] = useState("");
+  const [type, setType] = useState<OpportunityType>("活动");
+  const [eventDate, setEventDate] = useState("");
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const cleanTitle = title.trim(), cleanDetail = detail.trim();
+    if (!cleanTitle || !cleanDetail) return;
+    onPublish({ id: `U${Date.now()}`, title: cleanTitle.slice(0, 40), original: cleanDetail.slice(0, 240), type, source: "学生个人", status: "学生新发布", tags: ["学生发起", "待自行核验"], eventDate: eventDate || undefined, audience: ["未说明"], format: "未说明", team: type === "招募" ? "组队" : "未说明" });
+  }
+  return <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
+    <form className="publish-modal" onSubmit={submit}>
+      <button type="button" className="modal-close" onClick={onClose}><X/></button>
+      <span className="kicker">SHARE WITH CAMPUS</span><h2>发布活动或招募</h2><p className="form-hint">发布后会进入发现列表并保存在当前浏览器。请只填写可公开的信息。</p>
+      <div className="publish-form">
+        <label>标题<input required maxLength={40} value={title} onChange={event => setTitle(event.target.value)} placeholder="例如：周末代码交流搭子"/></label>
+        <label>类型<select value={type} onChange={event => setType(event.target.value as OpportunityType)}>{categories.slice(1).map(item => <option key={item}>{item}</option>)}</select></label>
+        <label>活动时间<input type="datetime-local" value={eventDate} onChange={event => setEventDate(event.target.value)}/></label>
+        <label className="wide">详细说明<textarea required maxLength={240} value={detail} onChange={event => setDetail(event.target.value)} placeholder="说明时间、地点、人数、费用、参与条件和仍待确认的信息。"/></label>
+      </div>
+      <button className="button primary publish-submit">发布到发现列表</button>
+    </form>
+  </div>
 }
 
 function PlansView({
@@ -939,6 +973,7 @@ function DetailModal({
           <span className={`type-badge type-${item.type}`}>{item.type}</span>
           <span>机会编号 NO.{item.id}</span>
           <h2>{item.title}</h2>
+          <div className="detail-meta"><span>{item.source}</span><span className={item.risk ? "risk-status" : ""}>{item.status}</span></div>
           <div className="tags">
             {item.tags.map((tag) => (
               <span key={tag}>#{tag}</span>
@@ -968,15 +1003,18 @@ function DetailModal({
               <b>{item.commitment ?? item.recurring ?? "题目未说明"}</b>
             </div>
           </div>
-          {item.similarTo && (
+          {item.riskNote && (
+            <div className="risk-notice">
+              <Info />
+              <p><b>请谨慎核验</b><span>{item.riskNote}</span></p>
+            </div>
+          )}
+          {item.relatedTo && (
             <div className="similar-notice">
               <Info />
               <p>
-                <b>发现相似信息</b>
-                <span>
-                  与 NO.{item.similarTo}{" "}
-                  内容高度相似。两条原始信息均已保留，请自行核对。
-                </span>
+                <b>关联通知 · NO.{item.relatedTo}</b>
+                <span>{item.relationNote}</span>
               </p>
             </div>
           )}
@@ -990,7 +1028,7 @@ function DetailModal({
           </section>
           <p className="data-boundary">
             <Info size={14} />{" "}
-            题目未提供报名地址、联系人或具体地点，拾机不会补充未经确认的信息。
+            {item.id.startsWith("U") ? "这是学生自主发布的公开内容，请在参与前核验时间、地点与发布者信息。" : "题目未提供的信息，拾机不会擅自补充。"}
           </p>
         </div>
         <div className="detail-footer">

@@ -11,9 +11,10 @@ function dateLabel(item: Opportunity) {
 }
 
 export function OpportunityCard({ item, plan, onOpen, onSave }: Props) {
-  return <article className="opportunity-card">
+  return <article className={`opportunity-card ${item.risk ? 'risk-card' : ''}`}>
     <button className={`save-button ${plan ? 'saved' : ''}`} onClick={() => onSave(item)} aria-label={plan ? '取消收藏' : '收藏'}><Bookmark size={17} fill={plan ? 'currentColor' : 'none'} /></button>
     <div className="card-top"><span className={`type-badge type-${item.type}`}>{item.type}</span><span className="index">NO.{item.id}</span></div>
+    <div className="card-meta"><span>{item.source}</span><span className={item.risk ? 'risk-status' : ''}>{item.status}</span></div>
     <h3>{item.title}</h3><p>{item.original}</p><div className="tags">{item.tags.slice(0, 3).map(tag => <span key={tag}>#{tag}</span>)}</div>
     <div className="card-footer"><span><CalendarClock size={14} /> {dateLabel(item)}</span><button onClick={() => onOpen(item)}>查看详情 <ArrowUpRight size={15} /></button></div>
   </article>

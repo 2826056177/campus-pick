@@ -7,6 +7,7 @@ const interestWords: Record<OpportunityType, string[]> = {
   招募: ['招募', '项目', '实践', '开发'],
   科研: ['科研', '论文', '实验'],
   志愿: ['志愿', '公益', '摄影'],
+  活动: ['活动', '交流', '约球', '语言角', '观摩'],
 }
 
 export function recommendFromText(query: string, items: Opportunity[]) {
@@ -24,11 +25,13 @@ export function recommendFromText(query: string, items: Opportunity[]) {
     if (/时间少|忙|短期|试试/.test(normalized) && item.commitment === '单次活动') { score += 3; reasons.push('单次活动，时间压力较小') }
     if (/ai|人工智能|大模型/.test(normalized) && /AI|大模型/.test(searchable)) { score += 6; reasons.push('与你的 AI 兴趣直接匹配') }
     if (/web|网页|前端/.test(normalized) && /Web|前端/.test(searchable)) { score += 6; reasons.push('与你的 Web 开发方向匹配') }
+    if (item.risk === 'high') score -= 100
     return { item, score, reasons }
   }).filter(result => result.score > 0).sort((a, b) => b.score - a.score).slice(0, 3)
 }
 
 export function scoreWithPreferences(item: Opportunity, preferences: UserPreferences) {
+  if (item.risk === 'high') return -100
   let score = preferences.interests.includes(item.type) ? 4 : 0
   if (preferences.beginner && item.tags.some(tag => /零基础|大一友好/.test(tag))) score += 3
   if (preferences.preferShortTerm && item.commitment === '单次活动') score += 2
