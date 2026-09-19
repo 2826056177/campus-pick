@@ -6,3 +6,6 @@ dist
 *.local
 .DS_Store
 .doc_review
+server-package
+*.zip
+服务器Agent部署提示词.md
